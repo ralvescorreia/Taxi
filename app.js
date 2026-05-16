@@ -147,14 +147,23 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
         dadosFiltrados = dadosFiltrados.filter(d => d.day_of_week === 0 || d.day_of_week === 6);
     }
 
-    const ordemNobres = [...new Set(dadosFiltrados.filter(d => d.perfil === "Nobre").map(d => d.bairro))];
-    const ordemPeriferia = [...new Set(dadosFiltrados.filter(d => d.perfil === "Periferia").map(d => d.bairro))];
+    // 🛡️ CORREÇÃO DE CONSISTÊNCIA VISUAL: Eixos indexados de forma fixa usando a matriz mestre
+    const todosBairrosDoDistrito = Object.values(mapeamentoZonas)
+        .filter(zona => zona.distrito === distritoAlvo);
 
-    const bairrosDesseDistrito = [...new Set(dadosFiltrados.map(d => d.bairro))];
+    const ordemNobres = [...new Set(todosBairrosDoDistrito
+        .filter(zona => zona.perfil === "Nobre")
+        .map(zona => zona.nome))];
+
+    const ordemPeriferia = [...new Set(todosBairrosDoDistrito
+        .filter(zona => zona.perfil === "Periferia")
+        .map(zona => zona.nome))];
+
+    const bairrosDesseDistrito = [...new Set(todosBairrosDoDistrito.map(zona => zona.nome))];
     const dadosCompletos = [];
 
     bairrosDesseDistrito.forEach(bairroNome => {
-        const modeloBairro = dadosFiltrados.find(d => d.bairro === bairroNome);
+        const modeloBairro = todosBairrosDoDistrito.find(zona => zona.nome === bairroNome);
         const perfilDefinido = modeloBairro ? modeloBairro.perfil : "Periferia";
 
         for (let hora = 0; hora < 24; hora++) {
@@ -186,9 +195,6 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
 }
 
 // =========================================================================
-// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (DESIGN PREMIUM MISTO)
-// =========================================================================
-// =========================================================================
 // 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS LARGAS / RETANGULARES)
 // =========================================================================
 function desenharGraficos(data, idsvg, ordemBairros) {
@@ -197,8 +203,6 @@ function desenharGraficos(data, idsvg, ordemBairros) {
 
     const margin = { top: 25, right: 30, left: 160, bottom: 40 }; 
     
-    // 🌟 CALIBRAÇÃO DE PROPORÇÃO: Aumentamos a largura para 960 e reduzimos a altura para 160
-    // Isso força o D3 a esticar os blocos horizontalmente, criando o efeito retangular perfeito
     const width = 960 - margin.left - margin.right;
     const height = 160; 
 
@@ -207,7 +211,6 @@ function desenharGraficos(data, idsvg, ordemBairros) {
                  .append('g')
                  .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Espaçamentos calibrados para manter a elegância do vão com as células maiores
     const xScale = d3.scaleBand()
         .domain(d3.range(24))
         .range([0, width])
@@ -218,13 +221,11 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .range([0, height])
         .padding(0.12); 
 
-    // Rampa divergente premium
     const colorScale = d3.scaleLinear()
         .domain([0.0, 1.0, 2.0])
         .range(["#a50026", "#ffffbf", "#006837"])
         .clamp(true);
 
-    // Renderização das células térmicas
     const celulas = g.selectAll(".quadradinho")
         .data(data)
         .enter()
@@ -234,7 +235,7 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .attr("y", d => yScale(d.bairro))
         .attr("width", xScale.bandwidth())
         .attr("height", yScale.bandwidth())
-        .attr("rx", 3.5) // Arredondamento suave estilo pastilha/pill
+        .attr("rx", 3.5) 
         .attr("ry", 3.5)
         .style("stroke", "none") 
         .style("fill", "#fafafa") 
@@ -262,12 +263,10 @@ function desenharGraficos(data, idsvg, ordemBairros) {
             tooltip.style("opacity", 0);
         });
 
-    // Animação de fade-in na carga dos dados
     celulas.transition()
         .duration(450)
         .style("fill", d => colorScale(d.eficiencia));
 
-    // Eixo X minimalista, sem linhas e com fontes limpas
     g.append("g")
         .attr("transform", `translate(0, ${height})`)
         .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`).tickSize(0))
@@ -278,7 +277,6 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .selectAll("text")
         .style("margin-top", "6px");
 
-    // Eixo Y flutuante alinhado à direita com contraste blindado para a banca
     g.append("g")
         .call(d3.axisLeft(yScale).tickSize(0))
         .call(g => g.select(".domain").remove()) 
@@ -293,6 +291,7 @@ function desenharGraficos(data, idsvg, ordemBairros) {
 // =========================================================================
 // 🎨 GERADOR DE LEGENDA HTML SIDEBAR
 // =========================================================================
+// (Mantido idêntico ao original)
 function criarLegendaHtml() {
     const container = d3.select("#container-legenda-html");
     container.selectAll("*").remove();
