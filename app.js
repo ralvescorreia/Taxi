@@ -186,35 +186,37 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
 }
 
 // =========================================================================
-// 📊 MOTOR RENDERIZADOR D3 (HEATMAP RENDERING)
+// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (DESIGN PREMIUM MISTO)
 // =========================================================================
 // =========================================================================
-// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (DESIGN DA GALERIA D3)
+// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS LARGAS / RETANGULARES)
 // =========================================================================
 function desenharGraficos(data, idsvg, ordemBairros) {
     const svg = d3.select(idsvg);
     svg.selectAll("*").remove(); // Limpa renderizações anteriores
 
-    // Margens equilibradas para dar excelente área de respiro ao Eixo Y
     const margin = { top: 25, right: 30, left: 160, bottom: 40 }; 
-    const width = 850 - margin.left - margin.right;
-    const height = 220; 
+    
+    // 🌟 CALIBRAÇÃO DE PROPORÇÃO: Aumentamos a largura para 960 e reduzimos a altura para 160
+    // Isso força o D3 a esticar os blocos horizontalmente, criando o efeito retangular perfeito
+    const width = 960 - margin.left - margin.right;
+    const height = 160; 
 
     const g = svg.attr('width', width + margin.left + margin.right)
                  .attr('height', height + margin.top + margin.bottom)
                  .append('g')
                  .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // 🎨 INSP. GALERIA: Padding reduzido para criar uma malha de calor mais densa e integrada
+    // Espaçamentos calibrados para manter a elegância do vão com as células maiores
     const xScale = d3.scaleBand()
         .domain(d3.range(24))
         .range([0, width])
-        .padding(0.02); // Blocos mais colados e elegantes
+        .padding(0.08); 
 
     const yScale = d3.scaleBand()
         .domain(ordemBairros)
         .range([0, height])
-        .padding(0.04); // Proporção uniforme com o Eixo X
+        .padding(0.12); 
 
     // Rampa divergente premium
     const colorScale = d3.scaleLinear()
@@ -232,12 +234,12 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .attr("y", d => yScale(d.bairro))
         .attr("width", xScale.bandwidth())
         .attr("height", yScale.bandwidth())
-        .attr("rx", 2) // Cantos sutilmente arredondados
-        .attr("ry", 2)
-        .style("stroke", "none") // 🎨 INSP. GALERIA: Remove divisórias duras para as cores fluírem melhor
-        .style("fill", "#fafafa") // Cor de fundo neutra de preparação
+        .attr("rx", 3.5) // Arredondamento suave estilo pastilha/pill
+        .attr("ry", 3.5)
+        .style("stroke", "none") 
+        .style("fill", "#fafafa") 
         .on("mouseover", function(event, d) {
-            celulas.style("opacity", 0.25); // Esmaecimento elegante dos adjacentes
+            celulas.style("opacity", 0.25); 
             d3.select(this).style("opacity", 1);
 
             tooltip.style("opacity", 1)
@@ -265,27 +267,27 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .duration(450)
         .style("fill", d => colorScale(d.eficiencia));
 
-    // 🎨 INSP. GALERIA: Eixo X minimalista, sem linhas e com fontes limpas
+    // Eixo X minimalista, sem linhas e com fontes limpas
     g.append("g")
         .attr("transform", `translate(0, ${height})`)
         .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`).tickSize(0))
-        .call(g => g.select(".domain").remove()) // Deleta a barra preta horizontal
+        .call(g => g.select(".domain").remove()) 
         .style("font-family", "'Inter', sans-serif")
         .style("font-size", "10px")
-        .style("color", "#8898aa") // Tom cinza de dashboard executivo
+        .style("color", "#8898aa") 
         .selectAll("text")
         .style("margin-top", "6px");
 
-    // 🎨 INSP. GALERIA: Eixo Y flutuante alinhado à direita com perfeição
+    // Eixo Y flutuante alinhado à direita com contraste blindado para a banca
     g.append("g")
         .call(d3.axisLeft(yScale).tickSize(0))
-        .call(g => g.select(".domain").remove()) // Deleta a barra preta vertical
+        .call(g => g.select(".domain").remove()) 
         .style("font-family", "'Inter', sans-serif")
         .style("font-size", "11px")
-        .style("color", "#32325d") // Cor grafite profunda e nítida
+        .style("color", "#1e293b") 
         .selectAll("text")
         .style("font-weight", "500")
-        .attr("dx", "-6px"); // Afasta o texto milimetricamente da borda do bloco
+        .attr("dx", "-6px"); 
 }
 
 // =========================================================================
