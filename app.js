@@ -125,7 +125,6 @@ meuDao.carregarDadosDeFluxo()
             atualizarPainelPorFiltros(regiaoSelecionada, tipoDiaSelecionado, granularidadeSelecionada);
         }
 
-        // Configurado para inicializar em "periodos" de forma padrão
         atualizarPainelPorFiltros("Brooklyn", "todos", "periodos");
         criarLegendaHtml();
     })
@@ -168,7 +167,7 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
 
     if (granularidadeAlva === "consolidado") {
         // =========================================================================
-        // 🌟 3º MODO ADICIONADO: CONSOLIDADO (MÉDIA GLOBAL DOS PERFIS)
+        // 🛡️ RECALIBRAÇÃO: AGREGAÇÃO PELA MÉDIA DAS REALIDADES LOCAIS DOS BAIRROS
         // =========================================================================
         ordemNobres = ["Todos os Bairros Nobres"];
         ordemPeriferia = ["Todos os Bairros Periféricos"];
@@ -178,30 +177,43 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
 
         perfis.forEach(perfilAlvo => {
             const rotuloEixoY = perfilAlvo === "Periferia" ? "Todos os Bairros Periféricos" : "Todos os Bairros Nobres";
-            
-            turnos.forEach(turno => {
-                const dadosDoTurnoPerfil = dadosFiltrados.filter(d => d.perfil === perfilAlvo && mapearTurnoUrbano(d.hour) === turno);
-                
-                if (dadosDoTurnoPerfil.length > 0) {
-                    const totalPickups = d3.sum(dadosDoTurnoPerfil, d => d.pickups);
-                    const totalDropoffs = d3.sum(dadosDoTurnoPerfil, d => d.dropoffs);
-                    const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
+            const bairrosDoPerfil = todosBairrosDoDistrito.filter(z => z.perfil === perfilAlvo).map(z => z.nome);
 
-                    dadosCompletos.push({
-                        bairro: rotuloEixoY, tempoLabel: turno, perfil: perfilAlvo,
-                        pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
-                    });
-                } else {
-                    dadosCompletos.push({
-                        bairro: rotuloEixoY, tempoLabel: turno, perfil: perfilAlvo,
-                        pickups: 0, dropoffs: 0, eficiencia: 1.0
-                    });
-                }
+            turnos.forEach(turno => {
+                let somaEficienciasLocais = 0;
+                let bairrosComDados = 0;
+                let somaTotalPickups = 0;
+                let somaTotalDropoffs = 0;
+
+                bairrosDoPerfil.forEach(bairroNome => {
+                    const dadosDoBairroTurno = dadosFiltrados.filter(d => d.bairro === bairroNome && mapearTurnoUrbano(d.hour) === turno);
+                    
+                    if (dadosDoBairroTurno.length > 0) {
+                        const p = d3.sum(dadosDoBairroTurno, d => d.pickups);
+                        const d = d3.sum(dadosDoBairroTurno, d => d.dropoffs);
+                        somaTotalPickups += p;
+                        somaTotalDropoffs += d;
+                        
+                        somaEficienciasLocais += (d > 0 ? (p / d) : 1.0);
+                        bairrosComDados++;
+                    } else {
+                        // Se o bairro não tem nenhuma corrida registrada nesse turno, a eficiência dele é neutra (1.0)
+                        somaEficienciasLocais += 1.0;
+                        bairrosComDados++;
+                    }
+                });
+
+                const eficienciaConsolidada = bairrosComDados > 0 ? (somaEficienciasLocais / bairrosComDados) : 1.0;
+
+                dadosCompletos.push({
+                    bairro: rotuloEixoY, tempoLabel: turno, perfil: perfilAlvo,
+                    pickups: somaTotalPickups, dropoffs: somaTotalDropoffs, eficiencia: eficienciaConsolidada
+                });
             });
         });
 
     } else {
-        // MODOS DISCRETOS: Mantém os eixos individuais travados de forma estática
+        // MODOS DISCRETOS (HORAS OU PERÍODOS POR BAIRRO INDIVIDUAL)
         ordemNobres = [...new Set(todosBairrosDoDistrito.filter(zona => zona.perfil === "Nobre").map(zona => zona.nome))];
         ordemPeriferia = [...new Set(todosBairrosDoDistrito.filter(zona => zona.perfil === "Periferia").map(zona => zona.nome))];
         const bairrosDesseDistrito = [...new Set(todosBairrosDoDistrito.map(zona => zona.nome))];
