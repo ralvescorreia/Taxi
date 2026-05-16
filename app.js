@@ -125,7 +125,7 @@ meuDao.carregarDadosDeFluxo()
             atualizarPainelPorFiltros(regiaoSelecionada, tipoDiaSelecionado, granularidadeSelecionada);
         }
 
-        // 🌟 MUDANÇA AQUI: Troque de "horas" para "periodos" para o gráfico nascer agregado!
+        // Configurado para inicializar em "periodos" de forma padrão
         atualizarPainelPorFiltros("Brooklyn", "todos", "periodos");
         criarLegendaHtml();
     })
@@ -162,64 +162,97 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
     const todosBairrosDoDistrito = Object.values(mapeamentoZonas)
         .filter(zona => zona.distrito === distritoAlvo);
 
-    const ordemNobres = [...new Set(todosBairrosDoDistrito
-        .filter(zona => zona.perfil === "Nobre")
-        .map(zona => zona.nome))];
+    let dadosCompletos = [];
+    let ordemNobres = [];
+    let ordemPeriferia = [];
 
-    const ordemPeriferia = [...new Set(todosBairrosDoDistrito
-        .filter(zona => zona.perfil === "Periferia")
-        .map(zona => zona.nome))];
+    if (granularidadeAlva === "consolidado") {
+        // =========================================================================
+        // 🌟 3º MODO ADICIONADO: CONSOLIDADO (MÉDIA GLOBAL DOS PERFIS)
+        // =========================================================================
+        ordemNobres = ["Todos os Bairros Nobres"];
+        ordemPeriferia = ["Todos os Bairros Periféricos"];
+        
+        const perfis = ["Periferia", "Nobre"];
+        const turnos = ["Madrugada", "Manhã", "Tarde", "Noite"];
 
-    const bairrosDesseDistrito = [...new Set(todosBairrosDoDistrito.map(zona => zona.nome))];
-    const dadosCompletos = [];
-
-    bairrosDesseDistrito.forEach(bairroNome => {
-        const modeloBairro = todosBairrosDoDistrito.find(zona => zona.nome === bairroNome);
-        const perfilDefinido = modeloBairro ? modeloBairro.perfil : "Periferia";
-
-        if (granularidadeAlva === "horas") {
-            for (let hora = 0; hora < 24; hora++) {
-                const dadosDaHora = dadosFiltrados.filter(d => d.bairro === bairroNome && d.hour === hora);
-                if (dadosDaHora.length > 0) {
-                    const totalPickups = d3.sum(dadosDaHora, d => d.pickups);
-                    const totalDropoffs = d3.sum(dadosDaHora, d => d.dropoffs);
-                    const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
-
-                    dadosCompletos.push({
-                        bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
-                        pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
-                    });
-                } else {
-                    dadosCompletos.push({
-                        bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
-                        pickups: 0, dropoffs: 0, eficiencia: 1.0
-                    });
-                }
-            }
-        } else {
-            // 🌟 FIXADO: Agora chama corretamente a função mestre mapearTurnoUrbano sem erros de escopo
-            const turnos = ["Madrugada", "Manhã", "Tarde", "Noite"];
+        perfis.forEach(perfilAlvo => {
+            const rotuloEixoY = perfilAlvo === "Periferia" ? "Todos os Bairros Periféricos" : "Todos os Bairros Nobres";
+            
             turnos.forEach(turno => {
-                const dadosDoTurno = dadosFiltrados.filter(d => d.bairro === bairroNome && mapearTurnoUrbano(d.hour) === turno);
-
-                if (dadosDoTurno.length > 0) {
-                    const totalPickups = d3.sum(dadosDoTurno, d => d.pickups);
-                    const totalDropoffs = d3.sum(dadosDoTurno, d => d.dropoffs);
+                const dadosDoTurnoPerfil = dadosFiltrados.filter(d => d.perfil === perfilAlvo && mapearTurnoUrbano(d.hour) === turno);
+                
+                if (dadosDoTurnoPerfil.length > 0) {
+                    const totalPickups = d3.sum(dadosDoTurnoPerfil, d => d.pickups);
+                    const totalDropoffs = d3.sum(dadosDoTurnoPerfil, d => d.dropoffs);
                     const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
 
                     dadosCompletos.push({
-                        bairro: bairroNome, tempoLabel: turno, perfil: perfilDefinido,
+                        bairro: rotuloEixoY, tempoLabel: turno, perfil: perfilAlvo,
                         pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
                     });
                 } else {
                     dadosCompletos.push({
-                        bairro: bairroNome, tempoLabel: turno, perfil: perfilDefinido,
+                        bairro: rotuloEixoY, tempoLabel: turno, perfil: perfilAlvo,
                         pickups: 0, dropoffs: 0, eficiencia: 1.0
                     });
                 }
             });
-        }
-    });
+        });
+
+    } else {
+        // MODOS DISCRETOS: Mantém os eixos individuais travados de forma estática
+        ordemNobres = [...new Set(todosBairrosDoDistrito.filter(zona => zona.perfil === "Nobre").map(zona => zona.nome))];
+        ordemPeriferia = [...new Set(todosBairrosDoDistrito.filter(zona => zona.perfil === "Periferia").map(zona => zona.nome))];
+        const bairrosDesseDistrito = [...new Set(todosBairrosDoDistrito.map(zona => zona.nome))];
+
+        bairrosDesseDistrito.forEach(bairroNome => {
+            const modeloBairro = todosBairrosDoDistrito.find(zona => zona.nome === bairroNome);
+            const perfilDefinido = modeloBairro ? modeloBairro.perfil : "Periferia";
+
+            if (granularidadeAlva === "horas") {
+                for (let hora = 0; hora < 24; hora++) {
+                    const dadosDaHora = dadosFiltrados.filter(d => d.bairro === bairroNome && d.hour === hora);
+                    if (dadosDaHora.length > 0) {
+                        const totalPickups = d3.sum(dadosDaHora, d => d.pickups);
+                        const totalDropoffs = d3.sum(dadosDaHora, d => d.dropoffs);
+                        const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
+
+                        dadosCompletos.push({
+                            bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
+                            pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
+                        });
+                    } else {
+                        dadosCompletos.push({
+                            bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
+                            pickups: 0, dropoffs: 0, eficiencia: 1.0
+                        });
+                    }
+                }
+            } else if (granularidadeAlva === "periodos") {
+                const turnos = ["Madrugada", "Manhã", "Tarde", "Noite"];
+                turnos.forEach(turno => {
+                    const dadosDoTurno = dadosFiltrados.filter(d => d.bairro === bairroNome && mapearTurnoUrbano(d.hour) === turno);
+
+                    if (dadosDoTurno.length > 0) {
+                        const totalPickups = d3.sum(dadosDoTurno, d => d.pickups);
+                        const totalDropoffs = d3.sum(dadosDoTurno, d => d.dropoffs);
+                        const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
+
+                        dadosCompletos.push({
+                            bairro: bairroNome, tempoLabel: turno, perfil: perfilDefinido,
+                            pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
+                        });
+                    } else {
+                        dadosCompletos.push({
+                            bairro: bairroNome, tempoLabel: turno, perfil: perfilDefinido,
+                            pickups: 0, dropoffs: 0, eficiencia: 1.0
+                        });
+                    }
+                });
+            }
+        });
+    }
 
     const dadosPeriferiaGrafico = dadosCompletos.filter(d => d.perfil === "Periferia");
     const dadosNobresGrafico = dadosCompletos.filter(d => d.perfil === "Nobre");
@@ -229,7 +262,7 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
 }
 
 // =========================================================================
-// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS ADAPTATIVAS HORAS/PERÍODOS)
+// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS ADAPTATIVAS MULTI-NÍVEIS)
 // =========================================================================
 function desenharGraficos(data, idsvg, ordemBairros) {
     const svg = d3.select(idsvg);
@@ -244,7 +277,6 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Assegura a ordenação fixa do Eixo X no domínio dependendo do fluxo ativo
     const distinctTimes = [...new Set(data.map(d => d.tempoLabel))];
     if (distinctTimes.includes("Madrugada")) {
         distinctTimes.sort((a, b) => {
