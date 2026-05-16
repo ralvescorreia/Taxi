@@ -1,0 +1,302 @@
+import { DAO } from './dao.js'; 
+
+// =========================================
+// MATRIZ DE ZONEAMENTO METROPOLITANO (80 ZONAS)
+// =========================================
+const mapeamentoZonas = {
+    // === 1. BROOKLYN ===
+    66:  { nome: "DUMBO / Vineyard", distrito: "Brooklyn", perfil: "Nobre" },
+    25:  { nome: "Brooklyn Heights", distrito: "Brooklyn", perfil: "Nobre" },
+    181: { nome: "Park Slope", distrito: "Brooklyn", perfil: "Nobre" },
+    97:  { nome: "Fort Greene", distrito: "Brooklyn", perfil: "Nobre" },
+    61:  { nome: "Crown Heights North", distrito: "Brooklyn", perfil: "Nobre" },
+    34:  { nome: "Canarsie", distrito: "Brooklyn", perfil: "Periferia" },
+    26:  { nome: "Brownsville", distrito: "Brooklyn", perfil: "Periferia" },
+    76:  { nome: "East New York", distrito: "Brooklyn", perfil: "Periferia" },
+    108: { nome: "Gravesend", distrito: "Brooklyn", perfil: "Periferia" },
+    14:  { nome: "Bay Ridge", distrito: "Brooklyn", perfil: "Periferia" },
+
+    // === 2. QUEENS ===
+    193: { nome: "Long Island City", distrito: "Queens", perfil: "Nobre" },
+    7:   { nome: "Astoria", distrito: "Queens", perfil: "Nobre" },
+    134: { nome: "Sunny Side", distrito: "Queens", perfil: "Nobre" },
+    95:  { nome: "Forest Hills", distrito: "Queens", perfil: "Nobre" },
+    223: { nome: "Steinway", distrito: "Queens", perfil: "Nobre" },
+    130: { nome: "Jamaica", distrito: "Queens", perfil: "Periferia" },
+    93:  { nome: "Far Rockaway", distrito: "Queens", perfil: "Periferia" },
+    216: { nome: "South Ozone Park", distrito: "Queens", perfil: "Periferia" },
+    56:  { nome: "Corona", distrito: "Queens", perfil: "Periferia" },
+    131: { nome: "Jamaica Estates", distrito: "Queens", perfil: "Periferia" },
+
+    // === 3. MANHATTAN (Centro / Sul) ===
+    236: { nome: "Upper East Side North", distrito: "Manhattan", perfil: "Nobre" },
+    263: { nome: "Yorkville West", distrito: "Manhattan", perfil: "Nobre" },
+    141: { nome: "Lenox Hill West", distrito: "Manhattan", perfil: "Nobre" },
+    237: { nome: "Upper East Side South", distrito: "Manhattan", perfil: "Nobre" },
+    142: { nome: "Lincoln Square Top", distrito: "Manhattan", perfil: "Nobre" },
+    140: { nome: "Lenox Hill East", distrito: "Manhattan", perfil: "Periferia" },
+    262: { nome: "Yorkville East", distrito: "Manhattan", perfil: "Periferia" },
+    50:  { nome: "Clinton West", distrito: "Manhattan", perfil: "Periferia" },
+    48:  { nome: "Clinton East", distrito: "Manhattan", perfil: "Periferia" },
+    100: { nome: "Garment District", distrito: "Manhattan", perfil: "Periferia" },
+
+    // === 4. NORTH MANHATTAN ===
+    127: { nome: "Inwood", distrito: "North Manhattan", perfil: "Nobre" },
+    244: { nome: "Washington Hts South", distrito: "North Manhattan", perfil: "Nobre" },
+    243: { nome: "Washington Hts North", distrito: "North Manhattan", perfil: "Nobre" },
+    116: { nome: "Hamilton Heights", distrito: "North Manhattan", perfil: "Nobre" },
+    152: { nome: "Manhattanville", distrito: "North Manhattan", perfil: "Nobre" },
+    41:  { nome: "Central Harlem", distrito: "North Manhattan", perfil: "Periferia" },
+    74:  { nome: "East Harlem North", distrito: "North Manhattan", perfil: "Periferia" },
+    75:  { nome: "East Harlem South", distrito: "North Manhattan", perfil: "Periferia" },
+    43:  { nome: "Central Harlem North", distrito: "North Manhattan", perfil: "Periferia" },
+    166: { nome: "Morningside Heights", distrito: "North Manhattan", perfil: "Periferia" },
+
+    // === 5. BRONX ===
+    259: { nome: "Woodlawn / Wake", distrito: "Bronx", perfil: "Nobre" },
+    183: { nome: "Pelham Parkway", distrito: "Bronx", perfil: "Nobre" },
+    242: { nome: "Van Nest / Morris", distrito: "Bronx", perfil: "Nobre" },
+    126: { nome: "Hunts Point", distrito: "Bronx", perfil: "Nobre" },
+    213: { nome: "Riverdale", distrito: "Bronx", perfil: "Nobre" },
+    167: { nome: "Morrisania / Melrose", distrito: "Bronx", perfil: "Periferia" },
+    119: { nome: "Highbridge", distrito: "Bronx", perfil: "Periferia" },
+    174: { nome: "Norwood", distrito: "Bronx", perfil: "Periferia" },
+    182: { nome: "Pelham Bay", distrito: "Bronx", perfil: "Periferia" },
+    200: { nome: "Rocklawn / Van Cort", distrito: "Bronx", perfil: "Periferia" },
+
+    // === 6. STATEN ISLAND ===
+    214: { nome: "South Beach / Dongan", distrito: "Staten Island", perfil: "Nobre" },
+    221: { nome: "Stapleton", distrito: "Staten Island", perfil: "Nobre" },
+    132: { nome: "Eltingville / Annadale", distrito: "Staten Island", perfil: "Nobre" },
+    226: { nome: "Sunnyside (SI)", distrito: "Staten Island", perfil: "Nobre" },
+    6:   { nome: "Arrochar / Fort Wadsworth", distrito: "Staten Island", perfil: "Nobre" },
+    187: { nome: "Port Richmond", distrito: "Staten Island", perfil: "Periferia" },
+    23:  { nome: "Bloomfield / Chelsea", distrito: "Staten Island", perfil: "Periferia" },
+    156: { nome: "Mariners Harbor", distrito: "Staten Island", perfil: "Periferia" },
+    110: { nome: "Great Kills", distrito: "Staten Island", perfil: "Periferia" },
+    84:  { nome: "Eltingville South", distrito: "Staten Island", perfil: "Periferia" },
+
+    // === 7. NEW JERSEY COAST ===
+    31:  { nome: "Jersey City Medical", distrito: "New Jersey Coast", perfil: "Nobre" },
+    32:  { nome: "Jersey City Riverfront", distrito: "New Jersey Coast", perfil: "Nobre" },
+    124: { nome: "Hoboken Naval Base", distrito: "New Jersey Coast", perfil: "Nobre" },
+    125: { nome: "Hoboken West Point", distrito: "New Jersey Coast", perfil: "Nobre" },
+    133: { nome: "Jersey City Heights", distrito: "New Jersey Coast", perfil: "Nobre" },
+    13:  { nome: "Bayonne North", distrito: "New Jersey Coast", perfil: "Periferia" },
+    15:  { nome: "Bay Ridge Fringe", distrito: "New Jersey Coast", perfil: "Periferia" },
+    247: { nome: "West New York Border", distrito: "New Jersey Coast", perfil: "Periferia" },
+    248: { nome: "Secaucus / Bergen", distrito: "New Jersey Coast", perfil: "Periferia" },
+    179: { nome: "North Bergen / Guttenberg", distrito: "New Jersey Coast", perfil: "Periferia" },
+
+    // === 8. LONG ISLAND BORDER ===
+    121: { nome: "Hillcrest / Fresh Meadows", distrito: "Long Island Border", perfil: "Nobre" },
+    122: { nome: "Holliswood / Jamaica", distrito: "Long Island Border", perfil: "Nobre" },
+    203: { nome: "Rosedale South", distrito: "Long Island Border", perfil: "Nobre" },
+    204: { nome: "Rosedale North / Valley", distrito: "Long Island Border", perfil: "Nobre" },
+    205: { nome: "Saint Albans East", distrito: "Long Island Border", perfil: "Nobre" },
+    1:   { nome: "Newark Airport Extension", distrito: "Long Island Border", perfil: "Periferia" },
+    2:   { nome: "Jamaica Bay Wildlife", distrito: "Long Island Border", perfil: "Periferia" },
+    155: { nome: "Madison Fringe", distrito: "Long Island Border", perfil: "Periferia" },
+    154: { nome: "Marine Park Border", distrito: "Long Island Border", perfil: "Periferia" },
+    153: { nome: "Marble Hill Border", distrito: "Long Island Border", perfil: "Periferia" }
+};
+
+const meuDao = new DAO();
+const tooltip = d3.select('body')
+    .append('div')
+    .attr('class', 'tooltip');
+let dadosGlobaisDoFluxo = [];
+
+// INITIALIZATION
+meuDao.carregarDadosDeFluxo()
+    .then(dadosDoBanco => {
+        dadosGlobaisDoFluxo = dadosDoBanco;
+        console.log("Exemplo de dado do banco:", dadosDoBanco[0]);
+        
+        d3.select("#seletor-regiao").on("change", pipelineDeAtualizacao);
+        d3.selectAll("input[name='filtro-dia']").on("change", pipelineDeAtualizacao);
+
+        function pipelineDeAtualizacao() {
+            const regiaoSelecionada = d3.select("#seletor-regiao").property("value");
+            const tipoDiaSelecionado = d3.select("input[name='filtro-dia']:checked").property("value");
+            atualizarPainelPorFiltros(regiaoSelecionada, tipoDiaSelecionado);
+        }
+
+        atualizarPainelPorFiltros("Brooklyn", "todos");
+        criarLegendaHtml();
+    })
+    .catch(error => console.error("Erro ao inicializar fluxo:", error));
+
+// =========================================
+// PIPELINE DE FILTRAGEM MULTI-NÍVEL
+// =========================================
+function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
+    let dadosFiltrados = dadosGlobaisDoFluxo
+        .map(d => {
+            const infoZona = mapeamentoZonas[d.bairro];
+            if (infoZona && infoZona.distrito === distritoAlvo) {
+                return { ...d, bairro: infoZona.nome, perfil: infoZona.perfil };
+            }
+            return null;
+        })
+        .filter(d => d !== null);
+
+    if (tipoDiaAlvo === "uteis") {
+        dadosFiltrados = dadosFiltrados.filter(d => d.day_of_week >= 1 && d.day_of_week <= 5);
+    } else if (tipoDiaAlvo === "fds") {
+        dadosFiltrados = dadosFiltrados.filter(d => d.day_of_week === 0 || d.day_of_week === 6);
+    }
+
+    const ordemNobres = [...new Set(dadosFiltrados.filter(d => d.perfil === "Nobre").map(d => d.bairro))];
+    const ordemPeriferia = [...new Set(dadosFiltrados.filter(d => d.perfil === "Periferia").map(d => d.bairro))];
+
+    const bairrosDesseDistrito = [...new Set(dadosFiltrados.map(d => d.bairro))];
+    const dadosCompletos = [];
+
+    bairrosDesseDistrito.forEach(bairroNome => {
+        const modeloBairro = dadosFiltrados.find(d => d.bairro === bairroNome);
+        const perfilDefinido = modeloBairro ? modeloBairro.perfil : "Periferia";
+
+        for (let hora = 0; hora < 24; hora++) {
+            const dadosDaHora = dadosFiltrados.filter(d => d.bairro === bairroNome && d.hour === hora);
+            
+            if (dadosDaHora.length > 0) {
+                const totalPickups = d3.sum(dadosDaHora, d => d.pickups);
+                const totalDropoffs = d3.sum(dadosDaHora, d => d.dropoffs);
+                const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
+
+                dadosCompletos.push({
+                    bairro: bairroNome, hour: hora, perfil: perfilDefinido,
+                    pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
+                });
+            } else {
+                dadosCompletos.push({
+                    bairro: bairroNome, hour: hora, perfil: perfilDefinido,
+                    pickups: 0, dropoffs: 0, eficiencia: 1.0
+                });
+            }
+        }
+    });
+
+    const dadosPeriferiaGrafico = dadosCompletos.filter(d => d.perfil === "Periferia");
+    const dadosNobresGrafico = dadosCompletos.filter(d => d.perfil === "Nobre");
+
+    desenharGraficos(dadosPeriferiaGrafico, '#heatmap-periferia', ordemPeriferia);
+    desenharGraficos(dadosNobresGrafico, '#heatmap-nobre', ordemNobres);
+}
+
+// =========================================================================
+// 📊 MOTOR RENDERIZADOR D3 (HEATMAP RENDERING)
+// =========================================================================
+function desenharGraficos(data, idsvg, ordemBairros) {
+    const svg = d3.select(idsvg);
+    svg.selectAll("*").remove(); // Limpa renderizações anteriores
+
+    const margin = { top: 25, right: 30, left: 140, bottom: 40 };
+    const width = 850 - margin.left - margin.right;
+    const height = 220; // Espaço exato calibrado para 5 linhas estáveis
+
+    const g = svg.attr('width', width + margin.left + margin.right)
+                 .attr('height', height + margin.top + margin.bottom)
+                 .append('g')
+                 .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Eixos de mapeamento
+    const xScale = d3.scaleBand()
+        .domain(d3.range(24))
+        .range([0, width])
+        .padding(0.05);
+
+    const yScale = d3.scaleBand()
+        .domain(ordemBairros)
+        .range([0, height])
+        .padding(0.1);
+
+    // Rampa divergente exata da Legenda
+    const colorScale = d3.scaleLinear()
+        .domain([0.0, 1.0, 2.0])
+        .range(["#a50026", "#ffffbf", "#006837"])
+        .clamp(true);
+
+    // Renderização das células térmicas
+    g.selectAll(".quadradinho")
+        .data(data)
+        .enter()
+        .append("rect")
+        .attr("x", d => xScale(d.hour))
+        .attr("y", d => yScale(d.bairro))
+        .attr("width", xScale.bandwidth())
+        .attr("height", yScale.bandwidth())
+        .style("fill", d => colorScale(d.eficiencia))
+        .style("stroke", "#fff")
+        .style("stroke-width", "0.5px")
+        .on("mouseover", function(event, d) {
+            tooltip.style("opacity", 1)
+                .html(`
+                    <strong>${d.bairro}</strong><br/>
+                    Horário: ${String(d.hour).padStart(2, '0')}:00h<br/>
+                    <hr style='margin: 4px 0; border:0; border-top:1px solid #444;'>
+                    Pickups (Saídas): ${d.pickups}<br/>
+                    Dropoffs (Chegadas): ${d.dropoffs}<br/>
+                    Razão S/C: <strong>${d.eficiencia.toFixed(2)}</strong>
+                `);
+        })
+        .on("mousemove", function(event) {
+            tooltip.style("left", (event.pageX + 15) + "px")
+                   .style("top", (event.pageY - 20) + "px");
+        })
+        .on("mouseleave", function() {
+            tooltip.style("opacity", 0);
+        });
+
+    // Adiciona o Eixo X (Horas)
+    g.append("g")
+        .attr("transform", `translate(0, ${height})`)
+        .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`))
+        .style("font-size", "10px");
+
+    // Adiciona o Eixo Y (Bairros)
+    g.append("g")
+        .call(d3.axisLeft(yScale))
+        .style("font-size", "11px");
+}
+
+// =========================================================================
+// 🎨 GERADOR DE LEGENDA HTML SIDEBAR
+// =========================================================================
+function criarLegendaHtml() {
+    const container = d3.select("#container-legenda-html");
+    container.selectAll("*").remove();
+
+    const box = container.append("div")
+        .style("display", "flex")
+        .style("flex-direction", "column")
+        .style("align-items", "stretch")
+        .style("font-family", "sans-serif")
+        .style("color", "#333");
+
+    box.append("div")
+        .text("Eficiência de Fluxo (Razão S/C)")
+        .style("font-size", "13px")
+        .style("font-weight", "bold")
+        .style("margin-bottom", "10px");
+
+    box.append("div")
+        .style("width", "100%")
+        .style("height", "14px")
+        .style("border-radius", "4px")
+        .style("background", "linear-gradient(to right, #a50026 0%, #ffffbf 50%, #006837 100%)")
+        .style("border", "1px solid #ccc")
+        .style("margin-bottom", "12px");
+
+    const labels = box.append("div")
+        .style("display", "flex")
+        .style("flex-direction", "column")
+        .style("gap", "6px")
+        .style("font-size", "11px")
+        .style("color", "#555");
+
+    labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#a50026;'>0.0</span> (Crítico / Retorno Vazio)");
+    labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#b5b57a;'>1.0</span> (Fluxo Neutro)");
+    labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#006837;'>2.0</span> (Superávit de Saídas)");
+}
