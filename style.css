@@ -3,7 +3,11 @@ body {
     font-family: Arial, Helvetica, sans-serif;
     background: #f5f5f5;
 }
-
+input[name="filtro-granularidade"]:checked + span,
+label:has(input[name="filtro-granularidade"]:checked) {
+    color: #1e293b;
+    font-weight: 600;
+}
 .container {
     padding: 30px;
 }

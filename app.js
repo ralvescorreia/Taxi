@@ -59,7 +59,7 @@ const mapeamentoZonas = {
     126: { nome: "Hunts Point", distrito: "Bronx", perfil: "Nobre" },
     213: { nome: "Riverdale", distrito: "Bronx", perfil: "Nobre" },
     167: { nome: "Morrisania / Melrose", distrito: "Bronx", perfil: "Periferia" },
-    119: { nome: "Highbridge", distrito: "Bronx", perfil: "Periferia" },
+    119: { location: "Highbridge", distrito: "Bronx", perfil: "Periferia" },
     174: { nome: "Norwood", distrito: "Bronx", perfil: "Periferia" },
     182: { nome: "Pelham Bay", distrito: "Bronx", perfil: "Periferia" },
     200: { nome: "Rocklawn / Van Cort", distrito: "Bronx", perfil: "Periferia" },
@@ -112,25 +112,37 @@ meuDao.carregarDadosDeFluxo()
     .then(dadosDoBanco => {
         dadosGlobaisDoFluxo = dadosDoBanco;
         console.log("Exemplo de dado do banco:", dadosDoBanco[0]);
-        
+
         d3.select("#seletor-regiao").on("change", pipelineDeAtualizacao);
         d3.selectAll("input[name='filtro-dia']").on("change", pipelineDeAtualizacao);
+        d3.selectAll("input[name='filtro-granularidade']").on("change", pipelineDeAtualizacao); 
 
         function pipelineDeAtualizacao() {
             const regiaoSelecionada = d3.select("#seletor-regiao").property("value");
             const tipoDiaSelecionado = d3.select("input[name='filtro-dia']:checked").property("value");
-            atualizarPainelPorFiltros(regiaoSelecionada, tipoDiaSelecionado);
+            const granularidadeSelecionada = d3.select("input[name='filtro-granularidade']:checked").property("value");
+
+            atualizarPainelPorFiltros(regiaoSelecionada, tipoDiaSelecionado, granularidadeSelecionada);
         }
 
-        atualizarPainelPorFiltros("Brooklyn", "todos");
+        // 🌟 MUDANÇA AQUI: Troque de "horas" para "periodos" para o gráfico nascer agregado!
+        atualizarPainelPorFiltros("Brooklyn", "todos", "periodos");
         criarLegendaHtml();
     })
     .catch(error => console.error("Erro ao inicializar fluxo:", error));
 
+// Helper para converter hora bruta no rótulo semântico do turno urbano
+function mapearTurnoUrbano(hora) {
+    if (hora >= 6 && hora <= 11) return "Manhã";
+    if (hora >= 12 && hora <= 17) return "Tarde";
+    if (hora >= 18 && hora <= 23) return "Noite";
+    return "Madrugada";
+}
+
 // =========================================
 // PIPELINE DE FILTRAGEM MULTI-NÍVEL
 // =========================================
-function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
+function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva) {
     let dadosFiltrados = dadosGlobaisDoFluxo
         .map(d => {
             const infoZona = mapeamentoZonas[d.bairro];
@@ -147,7 +159,6 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
         dadosFiltrados = dadosFiltrados.filter(d => d.day_of_week === 0 || d.day_of_week === 6);
     }
 
-    // 🛡️ CORREÇÃO DE CONSISTÊNCIA VISUAL: Eixos indexados de forma fixa usando a matriz mestre
     const todosBairrosDoDistrito = Object.values(mapeamentoZonas)
         .filter(zona => zona.distrito === distritoAlvo);
 
@@ -166,24 +177,47 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
         const modeloBairro = todosBairrosDoDistrito.find(zona => zona.nome === bairroNome);
         const perfilDefinido = modeloBairro ? modeloBairro.perfil : "Periferia";
 
-        for (let hora = 0; hora < 24; hora++) {
-            const dadosDaHora = dadosFiltrados.filter(d => d.bairro === bairroNome && d.hour === hora);
-            
-            if (dadosDaHora.length > 0) {
-                const totalPickups = d3.sum(dadosDaHora, d => d.pickups);
-                const totalDropoffs = d3.sum(dadosDaHora, d => d.dropoffs);
-                const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
+        if (granularidadeAlva === "horas") {
+            for (let hora = 0; hora < 24; hora++) {
+                const dadosDaHora = dadosFiltrados.filter(d => d.bairro === bairroNome && d.hour === hora);
+                if (dadosDaHora.length > 0) {
+                    const totalPickups = d3.sum(dadosDaHora, d => d.pickups);
+                    const totalDropoffs = d3.sum(dadosDaHora, d => d.dropoffs);
+                    const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
 
-                dadosCompletos.push({
-                    bairro: bairroNome, hour: hora, perfil: perfilDefinido,
-                    pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
-                });
-            } else {
-                dadosCompletos.push({
-                    bairro: bairroNome, hour: hora, perfil: perfilDefinido,
-                    pickups: 0, dropoffs: 0, eficiencia: 1.0
-                });
+                    dadosCompletos.push({
+                        bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
+                        pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
+                    });
+                } else {
+                    dadosCompletos.push({
+                        bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
+                        pickups: 0, dropoffs: 0, eficiencia: 1.0
+                    });
+                }
             }
+        } else {
+            // 🌟 FIXADO: Agora chama corretamente a função mestre mapearTurnoUrbano sem erros de escopo
+            const turnos = ["Madrugada", "Manhã", "Tarde", "Noite"];
+            turnos.forEach(turno => {
+                const dadosDoTurno = dadosFiltrados.filter(d => d.bairro === bairroNome && mapearTurnoUrbano(d.hour) === turno);
+
+                if (dadosDoTurno.length > 0) {
+                    const totalPickups = d3.sum(dadosDoTurno, d => d.pickups);
+                    const totalDropoffs = d3.sum(dadosDoTurno, d => d.dropoffs);
+                    const eficienciaMedia = totalDropoffs > 0 ? (totalPickups / totalDropoffs) : 1.0;
+
+                    dadosCompletos.push({
+                        bairro: bairroNome, tempoLabel: turno, perfil: perfilDefinido,
+                        pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
+                    });
+                } else {
+                    dadosCompletos.push({
+                        bairro: bairroNome, tempoLabel: turno, perfil: perfilDefinido,
+                        pickups: 0, dropoffs: 0, eficiencia: 1.0
+                    });
+                }
+            });
         }
     });
 
@@ -195,31 +229,41 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
 }
 
 // =========================================================================
-// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS LARGAS / RETANGULARES)
+// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS ADAPTATIVAS HORAS/PERÍODOS)
 // =========================================================================
 function desenharGraficos(data, idsvg, ordemBairros) {
     const svg = d3.select(idsvg);
-    svg.selectAll("*").remove(); // Limpa renderizações anteriores
+    svg.selectAll("*").remove();
 
-    const margin = { top: 25, right: 30, left: 160, bottom: 40 }; 
-    
+    const margin = { top: 25, right: 30, left: 160, bottom: 40 };
     const width = 960 - margin.left - margin.right;
-    const height = 160; 
+    const height = 160;
 
     const g = svg.attr('width', width + margin.left + margin.right)
-                 .attr('height', height + margin.top + margin.bottom)
-                 .append('g')
-                 .attr('transform', `translate(${margin.left},${margin.top})`);
+        .attr('height', height + margin.top + margin.bottom)
+        .append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Assegura a ordenação fixa do Eixo X no domínio dependendo do fluxo ativo
+    const distinctTimes = [...new Set(data.map(d => d.tempoLabel))];
+    if (distinctTimes.includes("Madrugada")) {
+        distinctTimes.sort((a, b) => {
+            const ordemTurnos = { "Madrugada": 1, "Manhã": 2, "Tarde": 3, "Noite": 4 };
+            return ordemTurnos[a] - ordemTurnos[b];
+        });
+    } else {
+        distinctTimes.sort((a, b) => parseInt(a) - parseInt(b));
+    }
 
     const xScale = d3.scaleBand()
-        .domain(d3.range(24))
+        .domain(distinctTimes)
         .range([0, width])
-        .padding(0.08); 
+        .padding(0.08);
 
     const yScale = d3.scaleBand()
         .domain(ordemBairros)
         .range([0, height])
-        .padding(0.12); 
+        .padding(0.12);
 
     const colorScale = d3.scaleLinear()
         .domain([0.0, 1.0, 2.0])
@@ -231,22 +275,22 @@ function desenharGraficos(data, idsvg, ordemBairros) {
         .enter()
         .append("rect")
         .attr("class", "quadradinho")
-        .attr("x", d => xScale(d.hour))
+        .attr("x", d => xScale(d.tempoLabel))
         .attr("y", d => yScale(d.bairro))
         .attr("width", xScale.bandwidth())
         .attr("height", yScale.bandwidth())
-        .attr("rx", 3.5) 
+        .attr("rx", 3.5)
         .attr("ry", 3.5)
-        .style("stroke", "none") 
-        .style("fill", "#fafafa") 
-        .on("mouseover", function(event, d) {
-            celulas.style("opacity", 0.25); 
+        .style("stroke", "none")
+        .style("fill", "#fafafa")
+        .on("mouseover", function (event, d) {
+            celulas.style("opacity", 0.25);
             d3.select(this).style("opacity", 1);
 
             tooltip.style("opacity", 1)
                 .html(`
                     <strong>${d.bairro}</strong><br/>
-                    Horário: ${String(d.hour).padStart(2, '0')}:00h<br/>
+                    Período: <strong>${d.tempoLabel}</strong><br/>
                     <hr style='margin: 4px 0; border:0; border-top:1px solid #e1e8ed;'>
                     Pickups (Saídas): ${d.pickups}<br/>
                     Dropoffs (Chegadas): ${d.dropoffs}<br/>
@@ -254,11 +298,11 @@ function desenharGraficos(data, idsvg, ordemBairros) {
                 `)
                 .style("font-family", "'Inter', sans-serif");
         })
-        .on("mousemove", function(event) {
+        .on("mousemove", function (event) {
             tooltip.style("left", (event.pageX + 15) + "px")
-                   .style("top", (event.pageY - 20) + "px");
+                .style("top", (event.pageY - 20) + "px");
         })
-        .on("mouseleave", function() {
+        .on("mouseleave", function () {
             celulas.style("opacity", 1);
             tooltip.style("opacity", 0);
         });
@@ -269,29 +313,28 @@ function desenharGraficos(data, idsvg, ordemBairros) {
 
     g.append("g")
         .attr("transform", `translate(0, ${height})`)
-        .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`).tickSize(0))
-        .call(g => g.select(".domain").remove()) 
+        .call(d3.axisBottom(xScale).tickSize(0))
+        .call(g => g.select(".domain").remove())
         .style("font-family", "'Inter', sans-serif")
         .style("font-size", "10px")
-        .style("color", "#8898aa") 
+        .style("color", "#8898aa")
         .selectAll("text")
         .style("margin-top", "6px");
 
     g.append("g")
         .call(d3.axisLeft(yScale).tickSize(0))
-        .call(g => g.select(".domain").remove()) 
+        .call(g => g.select(".domain").remove())
         .style("font-family", "'Inter', sans-serif")
         .style("font-size", "11px")
-        .style("color", "#1e293b") 
+        .style("color", "#1e293b")
         .selectAll("text")
         .style("font-weight", "500")
-        .attr("dx", "-6px"); 
+        .attr("dx", "-6px");
 }
 
 // =========================================================================
 // 🎨 GERADOR DE LEGENDA HTML SIDEBAR
 // =========================================================================
-// (Mantido idêntico ao original)
 function criarLegendaHtml() {
     const container = d3.select("#container-legenda-html");
     container.selectAll("*").remove();
