@@ -188,77 +188,104 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo) {
 // =========================================================================
 // 📊 MOTOR RENDERIZADOR D3 (HEATMAP RENDERING)
 // =========================================================================
+// =========================================================================
+// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (DESIGN DA GALERIA D3)
+// =========================================================================
 function desenharGraficos(data, idsvg, ordemBairros) {
     const svg = d3.select(idsvg);
     svg.selectAll("*").remove(); // Limpa renderizações anteriores
 
-    const margin = { top: 25, right: 30, left: 140, bottom: 40 };
+    // Margens equilibradas para dar excelente área de respiro ao Eixo Y
+    const margin = { top: 25, right: 30, left: 160, bottom: 40 }; 
     const width = 850 - margin.left - margin.right;
-    const height = 220; // Espaço exato calibrado para 5 linhas estáveis
+    const height = 220; 
 
     const g = svg.attr('width', width + margin.left + margin.right)
                  .attr('height', height + margin.top + margin.bottom)
                  .append('g')
                  .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Eixos de mapeamento
+    // 🎨 INSP. GALERIA: Padding reduzido para criar uma malha de calor mais densa e integrada
     const xScale = d3.scaleBand()
         .domain(d3.range(24))
         .range([0, width])
-        .padding(0.05);
+        .padding(0.02); // Blocos mais colados e elegantes
 
     const yScale = d3.scaleBand()
         .domain(ordemBairros)
         .range([0, height])
-        .padding(0.1);
+        .padding(0.04); // Proporção uniforme com o Eixo X
 
-    // Rampa divergente exata da Legenda
+    // Rampa divergente premium
     const colorScale = d3.scaleLinear()
         .domain([0.0, 1.0, 2.0])
         .range(["#a50026", "#ffffbf", "#006837"])
         .clamp(true);
 
     // Renderização das células térmicas
-    g.selectAll(".quadradinho")
+    const celulas = g.selectAll(".quadradinho")
         .data(data)
         .enter()
         .append("rect")
+        .attr("class", "quadradinho")
         .attr("x", d => xScale(d.hour))
         .attr("y", d => yScale(d.bairro))
         .attr("width", xScale.bandwidth())
         .attr("height", yScale.bandwidth())
-        .style("fill", d => colorScale(d.eficiencia))
-        .style("stroke", "#fff")
-        .style("stroke-width", "0.5px")
+        .attr("rx", 2) // Cantos sutilmente arredondados
+        .attr("ry", 2)
+        .style("stroke", "none") // 🎨 INSP. GALERIA: Remove divisórias duras para as cores fluírem melhor
+        .style("fill", "#fafafa") // Cor de fundo neutra de preparação
         .on("mouseover", function(event, d) {
+            celulas.style("opacity", 0.25); // Esmaecimento elegante dos adjacentes
+            d3.select(this).style("opacity", 1);
+
             tooltip.style("opacity", 1)
                 .html(`
                     <strong>${d.bairro}</strong><br/>
                     Horário: ${String(d.hour).padStart(2, '0')}:00h<br/>
-                    <hr style='margin: 4px 0; border:0; border-top:1px solid #444;'>
+                    <hr style='margin: 4px 0; border:0; border-top:1px solid #e1e8ed;'>
                     Pickups (Saídas): ${d.pickups}<br/>
                     Dropoffs (Chegadas): ${d.dropoffs}<br/>
                     Razão S/C: <strong>${d.eficiencia.toFixed(2)}</strong>
-                `);
+                `)
+                .style("font-family", "'Inter', sans-serif");
         })
         .on("mousemove", function(event) {
             tooltip.style("left", (event.pageX + 15) + "px")
                    .style("top", (event.pageY - 20) + "px");
         })
         .on("mouseleave", function() {
+            celulas.style("opacity", 1);
             tooltip.style("opacity", 0);
         });
 
-    // Adiciona o Eixo X (Horas)
+    // Animação de fade-in na carga dos dados
+    celulas.transition()
+        .duration(450)
+        .style("fill", d => colorScale(d.eficiencia));
+
+    // 🎨 INSP. GALERIA: Eixo X minimalista, sem linhas e com fontes limpas
     g.append("g")
         .attr("transform", `translate(0, ${height})`)
-        .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`))
-        .style("font-size", "10px");
+        .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`).tickSize(0))
+        .call(g => g.select(".domain").remove()) // Deleta a barra preta horizontal
+        .style("font-family", "'Inter', sans-serif")
+        .style("font-size", "10px")
+        .style("color", "#8898aa") // Tom cinza de dashboard executivo
+        .selectAll("text")
+        .style("margin-top", "6px");
 
-    // Adiciona o Eixo Y (Bairros)
+    // 🎨 INSP. GALERIA: Eixo Y flutuante alinhado à direita com perfeição
     g.append("g")
-        .call(d3.axisLeft(yScale))
-        .style("font-size", "11px");
+        .call(d3.axisLeft(yScale).tickSize(0))
+        .call(g => g.select(".domain").remove()) // Deleta a barra preta vertical
+        .style("font-family", "'Inter', sans-serif")
+        .style("font-size", "11px")
+        .style("color", "#32325d") // Cor grafite profunda e nítida
+        .selectAll("text")
+        .style("font-weight", "500")
+        .attr("dx", "-6px"); // Afasta o texto milimetricamente da borda do bloco
 }
 
 // =========================================================================
@@ -272,13 +299,13 @@ function criarLegendaHtml() {
         .style("display", "flex")
         .style("flex-direction", "column")
         .style("align-items", "stretch")
-        .style("font-family", "sans-serif")
-        .style("color", "#333");
+        .style("font-family", "'Inter', 'Segoe UI', sans-serif")
+        .style("color", "#2f3542");
 
     box.append("div")
         .text("Eficiência de Fluxo (Razão S/C)")
         .style("font-size", "13px")
-        .style("font-weight", "bold")
+        .style("font-weight", "600")
         .style("margin-bottom", "10px");
 
     box.append("div")
@@ -286,7 +313,7 @@ function criarLegendaHtml() {
         .style("height", "14px")
         .style("border-radius", "4px")
         .style("background", "linear-gradient(to right, #a50026 0%, #ffffbf 50%, #006837 100%)")
-        .style("border", "1px solid #ccc")
+        .style("border", "1px solid #e1e8ed")
         .style("margin-bottom", "12px");
 
     const labels = box.append("div")
@@ -294,7 +321,7 @@ function criarLegendaHtml() {
         .style("flex-direction", "column")
         .style("gap", "6px")
         .style("font-size", "11px")
-        .style("color", "#555");
+        .style("color", "#747d8c");
 
     labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#a50026;'>0.0</span> (Crítico / Retorno Vazio)");
     labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#b5b57a;'>1.0</span> (Fluxo Neutro)");
