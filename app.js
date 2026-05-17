@@ -1,8 +1,10 @@
 import { DAO } from './dao.js'; 
 
-// =========================================
+// =========================================================================
 // MATRIZ DE ZONEAMENTO METROPOLITANO (80 ZONAS)
-// =========================================
+// Estrutura de Dicionário (Hash Map) O(1) para traduzir 
+// IDs numéricos brutos do TLC em metadados semânticos e socioeconômicos.
+// =========================================================================
 const mapeamentoZonas = {
     // === 1. BROOKLYN ===
     66:  { nome: "DUMBO / Vineyard", distrito: "Brooklyn", perfil: "Nobre" },
@@ -101,22 +103,29 @@ const mapeamentoZonas = {
     153: { nome: "Marble Hill Border", distrito: "Long Island Border", perfil: "Periferia" }
 };
 
+// Instanciação da camada de persistência/acesso a dados (Data Access Object)
 const meuDao = new DAO();
+
+// Manipulação do DOM: Injeção da div flutuante que atuará como Tooltip de auditoria
 const tooltip = d3.select('body')
     .append('div')
     .attr('class', 'tooltip');
+
+// Armazenamento estático em memória para evitar requisições redundantes de rede I/O
 let dadosGlobaisDoFluxo = [];
 
-// INITIALIZATION
+// INITIALIZATION: Inicialização assíncrona do ecossistema do Dashboard
 meuDao.carregarDadosDeFluxo()
     .then(dadosDoBanco => {
         dadosGlobaisDoFluxo = dadosDoBanco;
         console.log("Exemplo de dado do banco:", dadosDoBanco[0]);
 
+        // Manipulação do DOM: Vinculação de Listeners de Eventos para os inputs de controle
         d3.select("#seletor-regiao").on("change", pipelineDeAtualizacao);
         d3.selectAll("input[name='filtro-dia']").on("change", pipelineDeAtualizacao);
         d3.selectAll("input[name='filtro-granularidade']").on("change", pipelineDeAtualizacao); 
 
+        // Escuta reativa às mudanças do usuário e dispara o recálculo do pipeline
         function pipelineDeAtualizacao() {
             const regiaoSelecionada = d3.select("#seletor-regiao").property("value");
             const tipoDiaSelecionado = d3.select("input[name='filtro-dia']:checked").property("value");
@@ -125,12 +134,14 @@ meuDao.carregarDadosDeFluxo()
             atualizarPainelPorFiltros(regiaoSelecionada, tipoDiaSelecionado, granularidadeSelecionada);
         }
 
+        // Estado inicial da renderização (Default: Brooklyn, Todos os dias, por Turnos Semânticos)
         atualizarPainelPorFiltros("Brooklyn", "todos", "periodos");
         criarLegendaHtml();
     })
     .catch(error => console.error("Erro ao inicializar fluxo:", error));
 
-// Helper para converter hora bruta no rótulo semântico do turno urbano
+// Abstração Temporal (When): Conversão de horas contínuas [0-23] em categorias discretas urbanas
+// Justificativa Infovis: Mitigação da sobrecarga visual e redução da carga cognitiva no Eixo X
 function mapearTurnoUrbano(hora) {
     if (hora >= 6 && hora <= 11) return "Manhã";
     if (hora >= 12 && hora <= 17) return "Tarde";
@@ -138,10 +149,12 @@ function mapearTurnoUrbano(hora) {
     return "Madrugada";
 }
 
-// =========================================
-// PIPELINE DE FILTRAGEM MULTI-NÍVEL
-// =========================================
+// =========================================================================
+// PIPELINE DE FILTRAGEM MULTI-NÍVEL E DERIVAÇÃO DE ATRIBUTOS (NÍVEL WHAT)
+// =========================================================================
 function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva) {
+    
+    // Transformação What: Mapeamento de IDs para nomes e injeção do atributo 'perfil' (Derivação)
     let dadosFiltrados = dadosGlobaisDoFluxo
         .map(d => {
             const infoZona = mapeamentoZonas[d.bairro];
@@ -150,14 +163,16 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
             }
             return null;
         })
-        .filter(d => d !== null);
+        .filter(d => d !== null); // Limpeza de registros desalinhados com o distrito sob análise
 
+    // Filtragem de série temporal com base no tipo de dia da semana (U.S. Time Convention)
     if (tipoDiaAlvo === "uteis") {
         dadosFiltrados = dadosFiltrados.filter(d => d.day_of_week >= 1 && d.day_of_week <= 5);
     } else if (tipoDiaAlvo === "fds") {
         dadosFiltrados = dadosFiltrados.filter(d => d.day_of_week === 0 || d.day_of_week === 6);
     }
 
+    // Identificação de controle do domínio geográfico fixo do distrito atual
     const todosBairrosDoDistrito = Object.values(mapeamentoZonas)
         .filter(zona => zona.distrito === distritoAlvo);
 
@@ -165,10 +180,12 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
     let ordemNobres = [];
     let ordemPeriferia = [];
 
+    // =========================================================================
+    // MODALIDADE 1: VISÃO CONSOLIDADA (MÉDIA DAS REALIDADES LOCAIS ABSTRATAS)
+    // Abstração de Alto Nível: Redução de dimensionalidade espacial eliminando as linhas
+    // individuais para expor curvas puras de tendência socioeconômica agregada.
+    // =========================================================================
     if (granularidadeAlva === "consolidado") {
-        // =========================================================================
-        // 🛡️ RECALIBRAÇÃO: AGREGAÇÃO PELA MÉDIA DAS REALIDADES LOCAIS DOS BAIRROS
-        // =========================================================================
         ordemNobres = ["Todos os Bairros Nobres"];
         ordemPeriferia = ["Todos os Bairros Periféricos"];
         
@@ -194,15 +211,17 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
                         somaTotalPickups += p;
                         somaTotalDropoffs += d;
                         
+                        // Cálculo da Métrica Derivada Interna (Razão Pickups/Dropoffs)
                         somaEficienciasLocais += (d > 0 ? (p / d) : 1.0);
                         bairrosComDados++;
                     } else {
-                        // Se o bairro não tem nenhuma corrida registrada nesse turno, a eficiência dele é neutra (1.0)
+                        // Regularização estatística: se o bairro não tem atividade, assume-se neutralidade (1.0)
                         somaEficienciasLocais += 1.0;
                         bairrosComDados++;
                     }
                 });
 
+                // Consolidação por média simples das eficiências locais (Garante peso igual a cada comunidade)
                 const eficienciaConsolidada = bairrosComDados > 0 ? (somaEficienciasLocais / bairrosComDados) : 1.0;
 
                 dadosCompletos.push({
@@ -213,7 +232,9 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
         });
 
     } else {
-        // MODOS DISCRETOS (HORAS OU PERÍODOS POR BAIRRO INDIVIDUAL)
+        // =========================================================================
+        // MODALIDADES DISCRETAS: ANÁLISE POR BAIRROS INDIVIDUAIS
+        // =========================================================================
         ordemNobres = [...new Set(todosBairrosDoDistrito.filter(zona => zona.perfil === "Nobre").map(zona => zona.nome))];
         ordemPeriferia = [...new Set(todosBairrosDoDistrito.filter(zona => zona.perfil === "Periferia").map(zona => zona.nome))];
         const bairrosDesseDistrito = [...new Set(todosBairrosDoDistrito.map(zona => zona.nome))];
@@ -222,6 +243,7 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
             const modeloBairro = todosBairrosDoDistrito.find(zona => zona.nome === bairroNome);
             const perfilDefinido = modeloBairro ? modeloBairro.perfil : "Periferia";
 
+            // Sub-Modo A: Granularidade por Horas Literais [0h - 23h]
             if (granularidadeAlva === "horas") {
                 for (let hora = 0; hora < 24; hora++) {
                     const dadosDaHora = dadosFiltrados.filter(d => d.bairro === bairroNome && d.hour === hora);
@@ -235,12 +257,14 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
                             pickups: totalPickups, dropoffs: totalDropoffs, eficiencia: eficienciaMedia
                         });
                     } else {
+                        // Preservação da matriz estrutural preenchendo vazios amostrais com zeros neutros
                         dadosCompletos.push({
                             bairro: bairroNome, tempoLabel: `${hora}h`, perfil: perfilDefinido,
                             pickups: 0, dropoffs: 0, eficiencia: 1.0
                         });
                     }
                 }
+            // Sub-Modo B: Granularidade Agrupada por Períodos Semânticos (Madrugada, Manhã, Tarde, Noite)
             } else if (granularidadeAlva === "periodos") {
                 const turnos = ["Madrugada", "Manhã", "Tarde", "Noite"];
                 turnos.forEach(turno => {
@@ -266,29 +290,37 @@ function atualizarPainelPorFiltros(distritoAlvo, tipoDiaAlvo, granularidadeAlva)
         });
     }
 
+    // Segregação final dos subsets para alimentação isolada dos dois componentes independentes de SVG
     const dadosPeriferiaGrafico = dadosCompletos.filter(d => d.perfil === "Periferia");
     const dadosNobresGrafico = dadosCompletos.filter(d => d.perfil === "Nobre");
 
+    // Acoplamento e chamada do motor de renderização gráfica
     desenharGraficos(dadosPeriferiaGrafico, '#heatmap-periferia', ordemPeriferia);
     desenharGraficos(dadosNobresGrafico, '#heatmap-nobre', ordemNobres);
 }
 
 // =========================================================================
-// 📊 MOTOR RENDERIZADOR D3 RECALIBRADO (CÉLULAS ADAPTATIVAS MULTI-NÍVEIS)
+// 📊 MOTOR RENDERIZADOR D3 (NÍVEL HOW - CODIFICAÇÃO VISUAL E CANAIS)
+// Justificativa do Design: Utilização estrita do Ranking de Eficácia de Canais de Munzner.
+// 1. Canal de Posição Espacial Comum (Eixos X/Y) para os atributos ordenados/categóricos.
+// 2. Canal de Magnitude por Luminância e Saturação Divergente para o atributo quantitativo.
 // =========================================================================
 function desenharGraficos(data, idsvg, ordemBairros) {
     const svg = d3.select(idsvg);
-    svg.selectAll("*").remove();
+    svg.selectAll("*").remove(); // Limpeza completa do DOM do SVG antes do Redraw (Evita vazamento de memória)
 
+    // Configuração estrutural do layout e margens para acomodar rótulos textuais longos (Left: 160px)
     const margin = { top: 25, right: 30, left: 160, bottom: 40 };
     const width = 960 - margin.left - margin.right;
     const height = 160;
 
+    // Ajuste dinâmico de atributos no contêiner SVG e injeção do nó principal 'g' agrupador
     const g = svg.attr('width', width + margin.left + margin.right)
         .attr('height', height + margin.top + margin.bottom)
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
+    // Extração e ordenação determinística das colunas temporais do Eixo X
     const distinctTimes = [...new Set(data.map(d => d.tempoLabel))];
     if (distinctTimes.includes("Madrugada")) {
         distinctTimes.sort((a, b) => {
@@ -296,41 +328,52 @@ function desenharGraficos(data, idsvg, ordemBairros) {
             return ordemTurnos[a] - ordemTurnos[b];
         });
     } else {
-        distinctTimes.sort((a, b) => parseInt(a) - parseInt(b));
+        distinctTimes.sort((a, b) => parseInt(a) - parseInt(b)); // Ordenação numérica cronológica para o modo horas
     }
 
+    // CÁLCULO DE ESCALAS (D3.JS)
+    // Escala Band (Ordinal discreta) para mapear os rótulos de tempo no comprimento horizontal em pixels
     const xScale = d3.scaleBand()
         .domain(distinctTimes)
         .range([0, width])
-        .padding(0.08);
+        .padding(0.08); // Padding interno cria o espaçamento visual clássico de matrizes/heatmaps
 
+    // Escala Band para mapear a listagem discreta de bairros na altura vertical útil em pixels
     const yScale = d3.scaleBand()
         .domain(ordemBairros)
         .range([0, height])
         .padding(0.12);
 
+    // Escala de Cores Linear e Divergente (Canal de Magnitude para Expressar a Variável Derivada)
+    // Escala Colorimétrica ColorBrewing (Red-Yellow-Green Divergent):
+    // 0.00 (Vermelho Profundo) -> Deficit Logístico Absoluto (Chegadas dominam / Morador Isolado)
+    // 1.00 (Amarelo Pastel/Bege) -> Equilíbrio de Fluxo / Invisibilidade Amostral Sistêmica
+    // 2.00 (Verde Escuro) -> Superávit Operacional (Atratividade e retenção ativa da frota)
     const colorScale = d3.scaleLinear()
         .domain([0.0, 1.0, 2.0])
         .range(["#a50026", "#ffffbf", "#006837"])
-        .clamp(true);
+        .clamp(true); // Clamp impede estouro de cores caso a razão de saídas dispare (ex: 5.0)
 
+    // INTERAÇÃO E MANIPULAÇÃO DO DOM: Injeção das células geométricas (rect) do Heatmap
     const celulas = g.selectAll(".quadradinho")
         .data(data)
         .enter()
         .append("rect")
         .attr("class", "quadradinho")
-        .attr("x", d => xScale(d.tempoLabel))
-        .attr("y", d => yScale(d.bairro))
-        .attr("width", xScale.bandwidth())
-        .attr("height", yScale.bandwidth())
-        .attr("rx", 3.5)
+        .attr("x", d => xScale(d.tempoLabel)) // Vinculação do X à escala temporal calculada
+        .attr("y", d => yScale(d.bairro))     // Vinculação do Y à escala categórica do bairro
+        .attr("width", xScale.bandwidth())   // Largura adaptativa calculada pelo D3 com base no número de colunas
+        .attr("height", yScale.bandwidth())  // Altura adaptativa baseada na densidade de linhas
+        .attr("rx", 3.5)                     // Arredondamento estético dos cantos dos seletores visuais
         .attr("ry", 3.5)
         .style("stroke", "none")
-        .style("fill", "#fafafa")
+        .style("fill", "#fafafa")            // Cor de base neutra para a interpolação de transição animada
         .on("mouseover", function (event, d) {
+            // Lógica de Isolamento Visual (Foco Analítico): Reduz opacidade dos adjacentes e destaca a célula sob o mouse
             celulas.style("opacity", 0.25);
             d3.select(this).style("opacity", 1);
 
+            // Alimentação de dados dinâmicos e injeção de HTML estrutural dentro do nó Tooltip do DOM
             tooltip.style("opacity", 1)
                 .html(`
                     <strong>${d.bairro}</strong><br/>
@@ -338,33 +381,39 @@ function desenharGraficos(data, idsvg, ordemBairros) {
                     <hr style='margin: 4px 0; border:0; border-top:1px solid #e1e8ed;'>
                     Pickups (Saídas): ${d.pickups}<br/>
                     Dropoffs (Chegadas): ${d.dropoffs}<br/>
-                    Razão S/C: <strong>${d.eficiencia.toFixed(2)}</strong>
+                    Razão Saídas e Chegadas: <strong>${d.eficiencia.toFixed(2)}</strong>
                 `)
                 .style("font-family", "'Inter', sans-serif");
         })
         .on("mousemove", function (event) {
+            // Rastreamento Euclidiano: Reposiciona a caixa flutuante seguindo as coordenadas do ponteiro do mouse
             tooltip.style("left", (event.pageX + 15) + "px")
                 .style("top", (event.pageY - 20) + "px");
         })
         .on("mouseleave", function () {
+            // Restaura as propriedades originais do DOM ao retirar o ponteiro do elemento
             celulas.style("opacity", 1);
             tooltip.style("opacity", 0);
         });
 
+    // Animação de Entrada/Atualização: Suaviza a transição de cores durantes as trocas de filtros
     celulas.transition()
         .duration(450)
         .style("fill", d => colorScale(d.eficiencia));
 
+    // MANIPULAÇÃO DO DOM: Construção e desenho dos componentes de eixos (Ticks textuais)
+    // Injeção do Eixo Horizontal (Tempo Urbano)
     g.append("g")
         .attr("transform", `translate(0, ${height})`)
-        .call(d3.axisBottom(xScale).tickSize(0))
-        .call(g => g.select(".domain").remove())
+        .call(d3.axisBottom(xScale).tickSize(0)) // Ocultação física dos risquinhos (ticks) para preservar o minimalismo
+        .call(g => g.select(".domain").remove()) // Remoção da linha sólida estrutural do eixo
         .style("font-family", "'Inter', sans-serif")
         .style("font-size", "10px")
         .style("color", "#8898aa")
         .selectAll("text")
         .style("margin-top", "6px");
 
+    // Injeção do Eixo Vertical (Vizinhanças/Classes Socioespaciais)
     g.append("g")
         .call(d3.axisLeft(yScale).tickSize(0))
         .call(g => g.select(".domain").remove())
@@ -377,11 +426,13 @@ function desenharGraficos(data, idsvg, ordemBairros) {
 }
 
 // =========================================================================
-// 🎨 GERADOR DE LEGENDA HTML SIDEBAR
+// 🎨 GERADOR DE LEGENDA HTML SIDEBAR (MANIPULAÇÃO PURA DO DOM VIA D3)
+// Justificativa: Fornecer o mapeamento explícito de leitura do canal de cores 
+// sem sobrecarregar a área dos componentes SVGs principais.
 // =========================================================================
 function criarLegendaHtml() {
     const container = d3.select("#container-legenda-html");
-    container.selectAll("*").remove();
+    container.selectAll("*").remove(); // Esvazia o container para evitar duplicações no re-render
 
     const box = container.append("div")
         .style("display", "flex")
@@ -391,11 +442,12 @@ function criarLegendaHtml() {
         .style("color", "#2f3542");
 
     box.append("div")
-        .text("Eficiência de Fluxo (Razão S/C)")
+        .text("Eficiência de Fluxo (Razão Saídas/Chegadas)")
         .style("font-size", "13px")
         .style("font-weight", "600")
         .style("margin-bottom", "10px");
 
+    // Injeção de uma barra com gradiente CSS nativo perfeitamente espelhado com a escala colorimétrica do D3
     box.append("div")
         .style("width", "100%")
         .style("height", "14px")
@@ -411,6 +463,7 @@ function criarLegendaHtml() {
         .style("font-size", "11px")
         .style("color", "#747d8c");
 
+    // Injeção explícita de rótulos textuais explicativos ancorando os extremos do Why social do projeto
     labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#a50026;'>0.0</span> (Crítico / Retorno Vazio)");
     labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#b5b57a;'>1.0</span> (Fluxo Neutro)");
     labels.append("div").html("<span style='display:inline-block; width:22px; font-weight:bold; color:#006837;'>2.0</span> (Superávit de Saídas)");
